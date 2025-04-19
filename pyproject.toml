@@ -1,0 +1,12 @@
+[project]
+name = "cloudera-ml-mcp-server"
+version = "0.1.0"
+description = "Cloudera Machine Learning MCP Server"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "requests>=2.28.0",
+    "pathlib>=1.0.1",
+    "python-dotenv>=1.0.0",
+    "mcp[cli]>=1.6.0",
+] 
