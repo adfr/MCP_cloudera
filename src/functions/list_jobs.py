@@ -1,9 +1,8 @@
 """List jobs function for Cloudera ML MCP"""
 
+import requests
 from typing import Dict, Any
 from datetime import datetime
-
-from .. import utils
 
 
 def list_jobs(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]:
@@ -18,11 +17,33 @@ def list_jobs(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]:
         Dictionary containing list of jobs
     """
     try:
-        session = utils.get_session(config)
-        project_id = config["project_id"]
+        project_id = config.get("project_id")
         
-        url = utils.format_url(config, f"/api/v2/projects/{project_id}/jobs")
-        response = session.get(url)
+        if not project_id:
+            return {
+                "success": False,
+                "message": "Missing project_id in configuration"
+            }
+        
+        # Properly format the host URL
+        host = config['host'].strip()
+        # Remove duplicate https:// if present
+        if host.startswith("https://https://"):
+            host = host.replace("https://https://", "https://")
+        # Ensure URL has a scheme
+        if not host.startswith(("http://", "https://")):
+            host = "https://" + host
+        # Remove trailing slash if present
+        host = host.rstrip("/")
+        
+        url = f"{host}/api/v2/projects/{project_id}/jobs"
+        headers = {
+            "Authorization": f"Bearer {config['api_key']}",
+            "Content-Type": "application/json"
+        }
+        
+        print(f"Making request to: {url}")  # Debug output
+        response = requests.get(url, headers=headers)
         response.raise_for_status()
         
         # Format jobs for easier consumption
@@ -60,8 +81,13 @@ def list_jobs(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]:
             "jobs": formatted_jobs,
             "count": len(formatted_jobs)
         }
+    except requests.exceptions.RequestException as e:
+        return {
+            "success": False,
+            "message": f"API request error: {str(e)}"
+        }
     except Exception as e:
         return {
             "success": False,
-            "message": utils.handle_error(e)
+            "message": f"Error listing jobs: {str(e)}"
         } 

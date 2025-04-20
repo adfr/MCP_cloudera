@@ -1,8 +1,7 @@
 """Delete all jobs function for Cloudera ML MCP"""
 
+import requests
 from typing import Dict, Any, List
-
-from .. import utils
 
 
 def delete_all_jobs(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]:
@@ -17,12 +16,34 @@ def delete_all_jobs(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str,
         Delete operation results
     """
     try:
-        session = utils.get_session(config)
-        project_id = config["project_id"]
+        project_id = config.get("project_id")
+        if not project_id:
+            return {
+                "success": False,
+                "message": "Missing project_id in configuration"
+            }
+            
+        # Properly format the host URL
+        host = config['host'].strip()
+        # Remove duplicate https:// if present
+        if host.startswith("https://https://"):
+            host = host.replace("https://https://", "https://")
+        # Ensure URL has a scheme
+        if not host.startswith(("http://", "https://")):
+            host = "https://" + host
+        # Remove trailing slash if present
+        host = host.rstrip("/")
+        
+        # Setup common headers
+        headers = {
+            "Authorization": f"Bearer {config['api_key']}",
+            "Content-Type": "application/json"
+        }
         
         # Get all jobs
-        jobs_url = utils.format_url(config, f"/api/v2/projects/{project_id}/jobs")
-        response = session.get(jobs_url)
+        jobs_url = f"{host}/api/v2/projects/{project_id}/jobs"
+        print(f"Getting all jobs from: {jobs_url}")  # Debug output
+        response = requests.get(jobs_url, headers=headers)
         response.raise_for_status()
         
         jobs_data = response.json()
@@ -45,8 +66,9 @@ def delete_all_jobs(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str,
             job_name = job.get("name", f"Job ID {job_id}")
             
             try:
-                delete_url = utils.format_url(config, f"/api/v2/projects/{project_id}/jobs/{job_id}")
-                delete_response = session.delete(delete_url)
+                delete_url = f"{host}/api/v2/projects/{project_id}/jobs/{job_id}"
+                print(f"Deleting job: {job_name} at: {delete_url}")  # Debug output
+                delete_response = requests.delete(delete_url, headers=headers)
                 delete_response.raise_for_status()
                 
                 deleted_jobs.append({
@@ -57,7 +79,7 @@ def delete_all_jobs(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str,
                 failed_jobs.append({
                     "id": job_id,
                     "name": job_name,
-                    "error": utils.handle_error(e)
+                    "error": str(e)
                 })
         
         # Prepare result
@@ -76,8 +98,13 @@ def delete_all_jobs(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str,
             "failed_count": len(failed_jobs),
             "failed_jobs": failed_jobs
         }
+    except requests.exceptions.RequestException as e:
+        return {
+            "success": False,
+            "message": f"API request error: {str(e)}"
+        }
     except Exception as e:
         return {
             "success": False,
-            "message": utils.handle_error(e)
+            "message": f"Error deleting jobs: {str(e)}"
         } 

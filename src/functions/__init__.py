@@ -6,6 +6,7 @@ from .list_jobs import list_jobs
 from .delete_job import delete_job
 from .delete_all_jobs import delete_all_jobs
 from .get_project_id import get_project_id
+from .get_runtimes import get_runtimes
 
 __all__ = [
     'upload_folder',
@@ -13,5 +14,6 @@ __all__ = [
     'list_jobs',
     'delete_job',
     'delete_all_jobs',
-    'get_project_id'
+    'get_project_id',
+    'get_runtimes'
 ] 

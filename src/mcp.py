@@ -158,6 +158,24 @@ class ClouderaMCP:
         """
         return functions.get_project_id(self.config, {"project_name": project_name})
     
+    def list_projects(self) -> Dict[str, Any]:
+        """
+        List all available projects
+        
+        Returns:
+            Dictionary containing all projects information
+        """
+        return functions.get_project_id(self.config, {"project_name": "*"})
+    
+    def get_runtimes(self) -> Dict[str, Any]:
+        """
+        Get available runtimes from Cloudera ML
+        
+        Returns:
+            Dictionary containing list of available runtimes
+        """
+        return functions.get_runtimes(self.config, {})
+    
     # Function declaration map for Claude to understand available functions
     FUNCTIONS = {
         "upload_folder": {
@@ -234,5 +252,11 @@ class ClouderaMCP:
                 }
             },
             "required": ["project_name"]
+        },
+        "list_projects": {
+            "description": "List all available projects"
+        },
+        "get_runtimes": {
+            "description": "Get available runtimes from Cloudera ML"
         }
     } 

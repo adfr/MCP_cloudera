@@ -7,7 +7,11 @@ import os
 import sys
 import json
 import argparse
+from dotenv import load_dotenv
 from src import ClouderaMCP
+
+# Load environment variables from .env file
+load_dotenv()
 
 def print_json(data):
     """Print JSON data in a readable format"""
@@ -29,7 +33,9 @@ def parse_args():
         'create_job', 
         'delete_job', 
         'delete_all_jobs',
-        'get_project_id'
+        'get_project_id',
+        'list_projects',
+        'get_runtimes'
     ], help='MCP command to run')
     
     # Command-specific arguments
@@ -104,6 +110,12 @@ def main():
                 print("Error: --project-name is required for get_project_id command")
                 return 1
             result = mcp.get_project_id(project_name=args.project_name)
+            
+        elif args.command == 'list_projects':
+            result = mcp.list_projects()
+            
+        elif args.command == 'get_runtimes':
+            result = mcp.get_runtimes()
         
         # Display the result
         print("\nCommand result:")

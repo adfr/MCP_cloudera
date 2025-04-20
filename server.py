@@ -5,6 +5,7 @@ This server enables LLMs to interact with Cloudera Machine Learning via API.
 """
 
 import os
+import json
 from mcp.server.fastmcp import FastMCP
 from dotenv import load_dotenv
 
@@ -18,6 +19,7 @@ from src.functions.list_jobs import list_jobs
 from src.functions.delete_job import delete_job
 from src.functions.delete_all_jobs import delete_all_jobs
 from src.functions.get_project_id import get_project_id
+from src.functions.get_runtimes import get_runtimes
 from src.utils import get_session, handle_error, format_url
 
 # Create MCP server
@@ -149,14 +151,44 @@ def get_project_id_tool(project_name: str) -> str:
     Get project ID from a project name.
     
     Args:
-        project_name: Name of the project to find
+        project_name: Name of the project to find. Use "*" to list all projects.
         
     Returns:
         JSON string with project information and ID
     """
     config = get_config()
     result = get_project_id(config, {"project_name": project_name})
-    return result
+    
+    # Convert result to string
+    return json.dumps(result, indent=2)
+
+@mcp.tool()
+def list_projects_tool() -> str:
+    """
+    List all available projects.
+    
+    Returns:
+        JSON string with all project information
+    """
+    config = get_config()
+    result = get_project_id(config, {"project_name": "*"})
+    
+    # Convert result to string
+    return json.dumps(result, indent=2)
+
+@mcp.tool()
+def get_runtimes_tool() -> str:
+    """
+    Get available runtimes from Cloudera ML.
+    
+    Returns:
+        JSON string with list of available runtimes and their details
+    """
+    config = get_config()
+    result = get_runtimes(config, {})
+    
+    # Convert result to string
+    return json.dumps(result, indent=2)
 
 if __name__ == "__main__":
     # Check if configuration is complete

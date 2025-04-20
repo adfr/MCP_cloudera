@@ -5,8 +5,6 @@ from pathlib import Path
 import requests
 from typing import Dict, Any, List, Optional
 
-from .. import utils
-
 
 def upload_folder(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -26,6 +24,13 @@ def upload_folder(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, A
         folder_path = params.get("folder_path")
         if not folder_path:
             raise ValueError("folder_path is required")
+            
+        project_id = config.get("project_id")
+        if not project_id:
+            return {
+                "success": False,
+                "message": "Missing project_id in configuration"
+            }
         
         ignore_folders = params.get("ignore_folders") or ["node_modules", ".git", ".vscode", "dist", "out"]
         
@@ -34,8 +39,22 @@ def upload_folder(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, A
         if not folder_path_obj.exists() or not folder_path_obj.is_dir():
             raise ValueError(f"{folder_path} is not a valid directory")
         
-        session = utils.get_session(config)
-        project_id = config["project_id"]
+        # Properly format the host URL
+        host = config['host'].strip()
+        # Remove duplicate https:// if present
+        if host.startswith("https://https://"):
+            host = host.replace("https://https://", "https://")
+        # Ensure URL has a scheme
+        if not host.startswith(("http://", "https://")):
+            host = "https://" + host
+        # Remove trailing slash if present
+        host = host.rstrip("/")
+        
+        # Setup headers
+        headers = {
+            "Authorization": f"Bearer {config['api_key']}",
+            "Content-Type": "application/json"
+        }
         
         upload_results = {
             "success": [],
@@ -60,10 +79,13 @@ def upload_folder(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, A
                         # First upload the file
                         with open(item, "rb") as file:
                             files = {"file": (item.name, file)}
-                            upload_url = utils.format_url(
-                                config, f"/api/v2/projects/{project_id}/files"
+                            upload_url = f"{host}/api/v2/projects/{project_id}/files"
+                            print(f"Uploading file: {relative_path} to {upload_url}")  # Debug output
+                            response = requests.post(
+                                upload_url, 
+                                files=files,
+                                headers={"Authorization": f"Bearer {config['api_key']}"}
                             )
-                            response = session.post(upload_url, files=files)
                             response.raise_for_status()
                         
                         # Then update its metadata to preserve the path
@@ -73,22 +95,23 @@ def upload_folder(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, A
                             "type": "file"
                         }
                         
-                        metadata_url = utils.format_url(
-                            config, f"/api/v2/projects/{project_id}/files/file"
-                        )
-                        response = session.patch(
+                        metadata_url = f"{host}/api/v2/projects/{project_id}/files/file"
+                        print(f"Updating metadata for: {relative_path}")  # Debug output
+                        response = requests.patch(
                             metadata_url,
                             json=metadata,
-                            headers={"Content-Type": "application/json"}
+                            headers={
+                                "Authorization": f"Bearer {config['api_key']}",
+                                "Content-Type": "application/json"
+                            }
                         )
                         response.raise_for_status()
                         
                         upload_results["success"].append(str(relative_path))
                     except Exception as e:
-                        error_message = utils.handle_error(e)
                         upload_results["failed"].append({
                             "file": str(item),
-                            "error": error_message
+                            "error": str(e)
                         })
         
         # Start the upload process
@@ -100,8 +123,13 @@ def upload_folder(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, A
             "failed_count": len(upload_results["failed"]),
             "results": upload_results
         }
+    except requests.exceptions.RequestException as e:
+        return {
+            "success": False,
+            "message": f"API request error: {str(e)}"
+        }
     except Exception as e:
         return {
             "success": False,
-            "message": utils.handle_error(e)
+            "message": f"Error uploading folder: {str(e)}"
         } 
