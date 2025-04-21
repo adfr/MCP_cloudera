@@ -1,33 +1,30 @@
-"""Delete job function for Cloudera ML MCP"""
-
+"""
+Delete an experiment in Cloudera ML
+"""
 import os
 import json
 import subprocess
 from urllib.parse import urlparse
 from typing import Dict, Any
 
-
-def delete_job(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]:
+def delete_experiment(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Delete a job by ID
+    Delete an experiment in Cloudera ML
     
     Args:
         config: MCP configuration with host and api_key
-        params: Function parameters
-            - job_id: ID of the job to delete
-        
+        params: Parameters for the API call:
+            - project_id: ID of the project (required)
+            - experiment_id: ID of the experiment to delete (required)
+    
     Returns:
-        Delete operation results
+        Dict with success flag and message
     """
     # Validate required parameters
-    job_id = params.get("job_id")
-    if not job_id:
-        return {"success": False, "message": "Missing required parameter: job_id"}
-    
-    # Get project_id from config
-    project_id = params.get("project_id") or config.get("project_id")
-    if not project_id:
-        return {"success": False, "message": "Missing project_id in configuration or parameters"}
+    required_params = ["project_id", "experiment_id"]
+    missing_params = [p for p in required_params if p not in params or not params[p]]
+    if missing_params:
+        return {"success": False, "message": f"Missing required parameters: {', '.join(missing_params)}"}
     
     # Format host URL correctly
     host = config.get("host", "")
@@ -46,43 +43,17 @@ def delete_job(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]
     if not api_key:
         return {"success": False, "message": "Missing api_key in configuration"}
     
-    # First, try to get the job details to include in the response
-    job_url = f"{host}/api/v2/projects/{project_id}/jobs/{job_id}"
-    print(f"Getting job details from: {job_url}")
-    
-    # Construct curl command for getting job details
-    get_job_cmd = [
-        "curl", "-s",
-        "-H", f"Authorization: ApiKey {api_key}",
-        job_url
-    ]
-    
-    job_name = f"Job ID {job_id}"
-    try:
-        # Execute curl command to get job details
-        job_result = subprocess.run(get_job_cmd, capture_output=True, text=True)
-        
-        # If successful, parse the job name
-        if job_result.returncode == 0 and job_result.stdout.strip():
-            try:
-                job_info = json.loads(job_result.stdout)
-                job_name = job_info.get("name", job_name)
-            except json.JSONDecodeError:
-                # If we can't parse the response, continue with deletion anyway
-                pass
-    except Exception:
-        # If we can't get the job details, continue with deletion anyway
-        pass
-    
     # Build the URL for the delete request
-    delete_url = f"{host}/api/v2/projects/{project_id}/jobs/{job_id}"
-    print(f"Deleting job with URL: {delete_url}")
+    project_id = params["project_id"]
+    experiment_id = params["experiment_id"]
+    api_url = f"{host}/api/v2/projects/{project_id}/experiments/{experiment_id}"
+    print(f"Deleting experiment with URL: {api_url}")
     
-    # Construct curl command for deletion
+    # Construct curl command
     curl_cmd = [
         "curl", "-s", "-X", "DELETE",
         "-H", f"Authorization: ApiKey {api_key}",
-        delete_url
+        api_url
     ]
     
     try:
@@ -93,7 +64,7 @@ def delete_job(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]
         if result.returncode != 0:
             return {
                 "success": False,
-                "message": f"Failed to delete job: {result.stderr}"
+                "message": f"Failed to delete experiment: {result.stderr}"
             }
         
         # Parse the response if there is any content
@@ -111,8 +82,7 @@ def delete_job(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]
                 
                 return {
                     "success": True,
-                    "message": f"Successfully deleted '{job_name}'",
-                    "job_id": job_id,
+                    "message": f"Successfully deleted experiment '{experiment_id}'",
                     "data": response
                 }
             except json.JSONDecodeError:
@@ -122,12 +92,11 @@ def delete_job(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]
         # If we got here, the deletion was likely successful but returned no content
         return {
             "success": True,
-            "message": f"Successfully deleted '{job_name}'",
-            "job_id": job_id
+            "message": f"Successfully deleted experiment '{experiment_id}'"
         }
     
     except Exception as e:
         return {
             "success": False,
-            "message": f"Error deleting job: {str(e)}"
+            "message": f"Error deleting experiment: {str(e)}"
         } 

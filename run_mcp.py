@@ -35,15 +35,44 @@ def parse_args():
         'delete_all_jobs',
         'get_project_id',
         'list_projects',
-        'get_runtimes'
+        'get_runtimes',
+        'create_job_run',
+        'create_model_build',
+        'create_model_deployment',
+        'delete_application'
     ], help='MCP command to run')
     
     # Command-specific arguments
     parser.add_argument('--folder-path', help='Local folder path to upload')
     parser.add_argument('--job-name', help='Name for the job to create')
     parser.add_argument('--script-path', help='Script path for the job to create')
-    parser.add_argument('--job-id', help='ID of the job to delete')
+    parser.add_argument('--job-id', help='ID of the job to delete or run')
     parser.add_argument('--project-name', help='Name of the project to find')
+    parser.add_argument('--runtime', help='Runtime identifier for jobs or applications')
+    parser.add_argument('--env-vars', help='Environment variables as JSON string')
+    parser.add_argument('--override-config', help='Job configuration overrides as JSON string')
+    # Model build specific arguments
+    parser.add_argument('--model-id', help='ID of the model to build or deploy')
+    parser.add_argument('--file-path', help='Path to the model script file or main Python file')
+    parser.add_argument('--function-name', help='Name of the function that contains the model code')
+    parser.add_argument('--kernel', help='Kernel type (default: python3)')
+    parser.add_argument('--replica-size', help='Pod size for the build')
+    parser.add_argument('--cpu', type=int, help='CPU cores')
+    parser.add_argument('--memory', type=int, help='Memory in GB')
+    parser.add_argument('--nvidia-gpu', type=int, help='Number of GPUs')
+    parser.add_argument('--use-custom-docker-image', action='store_true', help='Use a custom Docker image')
+    parser.add_argument('--custom-docker-image', help='Custom Docker image to use')
+    # Model deployment specific arguments
+    parser.add_argument('--build-id', help='ID of the model build to deploy')
+    parser.add_argument('--name', help='Name for the deployment')
+    parser.add_argument('--replica-count', type=int, help='Number of replicas')
+    parser.add_argument('--min-replica-count', type=int, help='Minimum number of replicas')
+    parser.add_argument('--max-replica-count', type=int, help='Maximum number of replicas')
+    parser.add_argument('--enable-auth', action='store_true', help='Enable authentication for the deployment')
+    parser.add_argument('--disable-auth', action='store_true', help='Disable authentication for the deployment')
+    parser.add_argument('--target-node-selector', help='Target node selector for the deployment')
+    # Application specific arguments
+    parser.add_argument('--application-id', help='ID of the application to delete')
     
     return parser.parse_args()
 
@@ -116,6 +145,139 @@ def main():
             
         elif args.command == 'get_runtimes':
             result = mcp.get_runtimes()
+        
+        elif args.command == 'create_job_run':
+            if not args.project_id:
+                print("Error: --project-id is required for create_job_run command")
+                return 1
+                
+            if not args.job_id:
+                print("Error: --job-id is required for create_job_run command")
+                return 1
+            
+            # Parse optional JSON parameters if provided
+            env_vars = None
+            if args.env_vars:
+                try:
+                    env_vars = json.loads(args.env_vars)
+                except json.JSONDecodeError:
+                    print("Error: --env-vars must be valid JSON")
+                    return 1
+            
+            override_config = None
+            if args.override_config:
+                try:
+                    override_config = json.loads(args.override_config)
+                except json.JSONDecodeError:
+                    print("Error: --override-config must be valid JSON")
+                    return 1
+            
+            result = mcp.create_job_run(
+                project_id=args.project_id,
+                job_id=args.job_id,
+                runtime_identifier=args.runtime,
+                environment_variables=env_vars,
+                override_config=override_config
+            )
+            
+        elif args.command == 'create_model_build':
+            if not args.project_id:
+                print("Error: --project-id is required for create_model_build command")
+                return 1
+                
+            if not args.model_id:
+                print("Error: --model-id is required for create_model_build command")
+                return 1
+                
+            if not args.file_path:
+                print("Error: --file-path is required for create_model_build command")
+                return 1
+                
+            if not args.function_name:
+                print("Error: --function-name is required for create_model_build command")
+                return 1
+            
+            # Parse environment variables if provided
+            env_vars = None
+            if args.env_vars:
+                try:
+                    env_vars = json.loads(args.env_vars)
+                except json.JSONDecodeError:
+                    print("Error: --env-vars must be valid JSON")
+                    return 1
+            
+            result = mcp.create_model_build(
+                project_id=args.project_id,
+                model_id=args.model_id,
+                file_path=args.file_path,
+                function_name=args.function_name,
+                kernel=args.kernel,
+                runtime_identifier=args.runtime,
+                replica_size=args.replica_size,
+                cpu=args.cpu,
+                memory=args.memory,
+                nvidia_gpu=args.nvidia_gpu,
+                use_custom_docker_image=args.use_custom_docker_image,
+                custom_docker_image=args.custom_docker_image,
+                environment_variables=env_vars
+            )
+        
+        elif args.command == 'create_model_deployment':
+            if not args.project_id:
+                print("Error: --project-id is required for create_model_deployment command")
+                return 1
+                
+            if not args.model_id:
+                print("Error: --model-id is required for create_model_deployment command")
+                return 1
+                
+            if not args.build_id:
+                print("Error: --build-id is required for create_model_deployment command")
+                return 1
+                
+            if not args.name:
+                print("Error: --name is required for create_model_deployment command")
+                return 1
+            
+            # Parse environment variables if provided
+            env_vars = None
+            if args.env_vars:
+                try:
+                    env_vars = json.loads(args.env_vars)
+                except json.JSONDecodeError:
+                    print("Error: --env-vars must be valid JSON")
+                    return 1
+            
+            # Handle enable/disable auth flags
+            enable_auth = True
+            if args.disable_auth:
+                enable_auth = False
+            
+            result = mcp.create_model_deployment(
+                project_id=args.project_id,
+                model_id=args.model_id,
+                build_id=args.build_id,
+                name=args.name,
+                cpu=args.cpu,
+                memory=args.memory,
+                replica_count=args.replica_count,
+                min_replica_count=args.min_replica_count,
+                max_replica_count=args.max_replica_count,
+                nvidia_gpu=args.nvidia_gpu,
+                environment_variables=env_vars,
+                enable_auth=enable_auth,
+                target_node_selector=args.target_node_selector
+            )
+        
+        elif args.command == 'delete_application':
+            if not args.application_id:
+                print("Error: --application-id is required for delete_application command")
+                return 1
+            
+            result = mcp.delete_application(
+                application_id=args.application_id,
+                project_id=args.project_id
+            )
         
         # Display the result
         print("\nCommand result:")
