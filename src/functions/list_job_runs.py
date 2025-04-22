@@ -58,7 +58,12 @@ def list_job_runs(config, params=None):
     if job_id:
         url = f"{host}/api/v2/projects/{project_id}/jobs/{job_id}/runs"
     else:
-        url = f"{host}/api/v2/projects/{project_id}/job-runs"
+        # The generic endpoint doesn't seem to work, let the user know they need to provide a job ID
+        return {
+            "success": False,
+            "message": "A job_id is required. The Cloudera ML API does not support listing all job runs without a specific job ID.",
+            "data": None
+        }
 
     print(f"Accessing: {url}")
 

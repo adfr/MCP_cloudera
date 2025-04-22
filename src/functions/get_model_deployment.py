@@ -61,7 +61,7 @@ def get_model_deployment(config: Dict[str, str], params: Dict[str, Any]) -> Dict
     
     # Set up headers
     headers = [
-        '-H', f'Authorization: ApiKey {config["api_key"]}',
+        '-H', f'Authorization: Bearer {config["api_key"]}',
         '-H', 'Content-Type: application/json'
     ]
     

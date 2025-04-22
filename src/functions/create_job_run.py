@@ -23,6 +23,12 @@ def create_job_run(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, 
     Returns:
         Dict with success flag, message, and job run data
     """
+    # Debug prints
+    print(f"config type: {type(config)}")
+    print(f"config contents: {config}")
+    print(f"params type: {type(params)}")
+    print(f"params contents: {params}")
+    
     # Validate required parameters
     required_params = ["project_id", "job_id"]
     missing_params = [p for p in required_params if p not in params or not params[p]]
@@ -41,6 +47,10 @@ def create_job_run(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, 
     elif parsed_url.scheme and "://" in host[len(parsed_url.scheme)+3:]:
         # Fix potential double https:// in the URL
         host = parsed_url.scheme + "://" + host.split("://")[-1]
+    
+    # Remove trailing slash if present
+    if host.endswith('/'):
+        host = host[:-1]
     
     api_key = config.get("api_key")
     if not api_key:
@@ -72,7 +82,7 @@ def create_job_run(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, 
     # Construct curl command
     curl_cmd = [
         "curl", "-s", "-X", "POST",
-        "-H", f"Authorization: ApiKey {api_key}",
+        "-H", f"Authorization: Bearer {api_key}",
         "-H", "Content-Type: application/json",
         "-d", request_data_json,
         api_url
@@ -81,6 +91,12 @@ def create_job_run(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, 
     try:
         # Execute curl command
         result = subprocess.run(curl_cmd, capture_output=True, text=True)
+        
+        # Debug the result
+        print(f"curl result type: {type(result)}")
+        print(f"curl returncode: {result.returncode}")
+        print(f"curl stdout type: {type(result.stdout)}")
+        print(f"curl stdout (first 200 chars): {result.stdout[:200]}")
         
         # Check if the curl command was successful
         if result.returncode != 0:
@@ -91,7 +107,9 @@ def create_job_run(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, 
         
         # Parse the response
         try:
+            print("Attempting to parse JSON response...")
             response = json.loads(result.stdout)
+            print(f"Response parsed successfully. Type: {type(response)}")
             
             # Check if there's an error in the response
             if "error" in response:

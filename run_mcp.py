@@ -29,6 +29,7 @@ def parse_args():
     # Command to run
     parser.add_argument('command', choices=[
         'list_jobs', 
+        'upload_file',
         'upload_folder', 
         'create_job', 
         'delete_job', 
@@ -37,12 +38,19 @@ def parse_args():
         'list_projects',
         'get_runtimes',
         'create_job_run',
+        'list_job_runs',
         'create_model_build',
         'create_model_deployment',
-        'delete_application'
+        'delete_application',
+        'get_application',
+        'list_applications',
+        'create_application'
     ], help='MCP command to run')
     
     # Command-specific arguments
+    parser.add_argument('--file-path', help='Path to the file to upload')
+    parser.add_argument('--target-name', help='Target name for the uploaded file')
+    parser.add_argument('--target-dir', help='Target directory for the uploaded file')
     parser.add_argument('--folder-path', help='Local folder path to upload')
     parser.add_argument('--job-name', help='Name for the job to create')
     parser.add_argument('--script-path', help='Script path for the job to create')
@@ -51,9 +59,9 @@ def parse_args():
     parser.add_argument('--runtime', help='Runtime identifier for jobs or applications')
     parser.add_argument('--env-vars', help='Environment variables as JSON string')
     parser.add_argument('--override-config', help='Job configuration overrides as JSON string')
+    parser.add_argument('--description', help='Description for the job or application')
     # Model build specific arguments
     parser.add_argument('--model-id', help='ID of the model to build or deploy')
-    parser.add_argument('--file-path', help='Path to the model script file or main Python file')
     parser.add_argument('--function-name', help='Name of the function that contains the model code')
     parser.add_argument('--kernel', help='Kernel type (default: python3)')
     parser.add_argument('--replica-size', help='Pod size for the build')
@@ -72,7 +80,7 @@ def parse_args():
     parser.add_argument('--disable-auth', action='store_true', help='Disable authentication for the deployment')
     parser.add_argument('--target-node-selector', help='Target node selector for the deployment')
     # Application specific arguments
-    parser.add_argument('--application-id', help='ID of the application to delete')
+    parser.add_argument('--application-id', help='ID of the application to delete or get details for')
     
     return parser.parse_args()
 
@@ -113,6 +121,12 @@ def main():
         if args.command == 'list_jobs':
             result = mcp.list_jobs()
         
+        elif args.command == 'upload_file':
+            if not args.file_path:
+                print("Error: --file-path is required for upload_file command")
+                return 1
+            result = mcp.upload_file(file_path=args.file_path, target_name=args.target_name, target_dir=args.target_dir)
+        
         elif args.command == 'upload_folder':
             if not args.folder_path:
                 print("Error: --folder-path is required for upload_folder command")
@@ -145,6 +159,11 @@ def main():
             
         elif args.command == 'get_runtimes':
             result = mcp.get_runtimes()
+            
+        elif args.command == 'list_job_runs':
+            # Get job_id if provided
+            job_id = args.job_id
+            result = mcp.list_job_runs(job_id=job_id, project_id=args.project_id)
         
         elif args.command == 'create_job_run':
             if not args.project_id:
@@ -277,6 +296,49 @@ def main():
             result = mcp.delete_application(
                 application_id=args.application_id,
                 project_id=args.project_id
+            )
+            
+        elif args.command == 'get_application':
+            if not args.application_id:
+                print("Error: --application-id is required for get_application command")
+                return 1
+            
+            result = mcp.get_application(
+                application_id=args.application_id,
+                project_id=args.project_id
+            )
+            
+        elif args.command == 'list_applications':
+            result = mcp.list_applications(project_id=args.project_id)
+            
+        elif args.command == 'create_application':
+            if not args.name:
+                print("Error: --name is required for create_application command")
+                return 1
+                
+            if not args.script_path:
+                print("Error: --script-path is required for create_application command")
+                return 1
+            
+            # Parse environment variables if provided
+            env_vars = None
+            if args.env_vars:
+                try:
+                    env_vars = json.loads(args.env_vars)
+                except json.JSONDecodeError:
+                    print("Error: --env-vars must be valid JSON")
+                    return 1
+            
+            result = mcp.create_application(
+                name=args.name,
+                script=args.script_path,
+                project_id=args.project_id,
+                description=args.description if hasattr(args, 'description') else None,
+                cpu=args.cpu,
+                memory=args.memory,
+                nvidia_gpu=args.nvidia_gpu,
+                runtime_identifier=args.runtime,
+                environment_variables=env_vars
             )
         
         # Display the result

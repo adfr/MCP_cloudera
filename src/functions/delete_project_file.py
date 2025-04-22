@@ -57,7 +57,7 @@ def delete_project_file(config: Dict[str, str], params: Dict[str, Any]) -> Dict[
     # Construct curl command for deletion
     curl_cmd = [
         "curl", "-s", "-X", "DELETE",
-        "-H", f"Authorization: ApiKey {api_key}",
+        "-H", f"Authorization: Bearer {api_key}",
         delete_url
     ]
     

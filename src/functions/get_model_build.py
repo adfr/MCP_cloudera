@@ -61,7 +61,7 @@ def get_model_build(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str,
     
     # Set up headers
     headers = [
-        '-H', f'Authorization: ApiKey {config["api_key"]}',
+        '-H', f'Authorization: Bearer {config["api_key"]}',
         '-H', 'Content-Type: application/json'
     ]
     

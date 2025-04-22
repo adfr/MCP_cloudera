@@ -1,9 +1,6 @@
 """Get application function for Cloudera ML MCP"""
 
-import os
-import json
-import subprocess
-from urllib.parse import urlparse
+import requests
 from typing import Dict, Any
 
 
@@ -20,86 +17,60 @@ def get_application(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str,
     Returns:
         Application details
     """
-    # Validate required parameters
-    application_id = params.get("application_id")
-    if not application_id:
-        return {"success": False, "message": "Missing required parameter: application_id"}
-    
-    # Get project_id from params or config
-    project_id = params.get("project_id") or config.get("project_id")
-    if not project_id:
-        return {"success": False, "message": "Missing project_id in configuration or parameters"}
-    
-    # Format host URL correctly
-    host = config.get("host", "")
-    if not host:
-        return {"success": False, "message": "Missing host in configuration"}
-    
-    # Make sure host has the correct scheme
-    parsed_url = urlparse(host)
-    if not parsed_url.scheme:
-        host = "https://" + host
-    elif parsed_url.scheme and "://" in host[len(parsed_url.scheme)+3:]:
-        # Fix potential double https:// in the URL
-        host = parsed_url.scheme + "://" + host.split("://")[-1]
-    
-    api_key = config.get("api_key")
-    if not api_key:
-        return {"success": False, "message": "Missing api_key in configuration"}
-    
-    # Build the URL for the GET request
-    app_url = f"{host}/api/v2/projects/{project_id}/applications/{application_id}"
-    print(f"Getting application details from: {app_url}")
-    
-    # Construct curl command to get application details
-    curl_cmd = [
-        "curl", "-s",
-        "-H", f"Authorization: ApiKey {api_key}",
-        app_url
-    ]
-    
     try:
-        # Execute curl command
-        result = subprocess.run(curl_cmd, capture_output=True, text=True)
+        # Validate required parameters
+        application_id = params.get("application_id")
+        if not application_id:
+            return {"success": False, "message": "Missing required parameter: application_id"}
         
-        # Check if the curl command was successful
-        if result.returncode != 0:
-            return {
-                "success": False,
-                "message": f"Failed to get application details: {result.stderr}"
-            }
+        # Get project_id from params or config
+        project_id = params.get("project_id") or config.get("project_id")
+        if not project_id:
+            return {"success": False, "message": "Missing project_id in configuration or parameters"}
+        
+        # Format host URL correctly
+        host = config.get("host", "").strip()
+        # Remove duplicate https:// if present
+        if host.startswith("https://https://"):
+            host = host.replace("https://https://", "https://")
+        # Ensure URL has a scheme
+        if not host.startswith(("http://", "https://")):
+            host = "https://" + host
+        # Remove trailing slash if present
+        host = host.rstrip("/")
+        
+        api_key = config.get("api_key")
+        if not api_key:
+            return {"success": False, "message": "Missing api_key in configuration"}
+        
+        # Build the URL for the GET request
+        app_url = f"{host}/api/v2/projects/{project_id}/applications/{application_id}"
+        print(f"Getting application details from: {app_url}")
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        # Make the request
+        response = requests.get(app_url, headers=headers)
+        response.raise_for_status()
         
         # Parse the response
-        if result.stdout.strip():
-            try:
-                response = json.loads(result.stdout)
-                
-                # Check if there's an error in the response
-                if "error" in response:
-                    return {
-                        "success": False, 
-                        "message": f"API error: {response.get('error', {}).get('message', 'Unknown error')}",
-                        "details": response.get("error", {})
-                    }
-                
-                return {
-                    "success": True,
-                    "message": f"Successfully retrieved application '{application_id}'",
-                    "application_id": application_id,
-                    "data": response
-                }
-            except json.JSONDecodeError as e:
-                return {
-                    "success": False,
-                    "message": f"Failed to parse API response: {str(e)}",
-                    "raw_response": result.stdout
-                }
-        else:
-            return {
-                "success": False,
-                "message": "Empty response from API"
-            }
-    
+        application_data = response.json()
+        
+        return {
+            "success": True,
+            "message": f"Successfully retrieved application '{application_id}'",
+            "application_id": application_id,
+            "data": application_data
+        }
+        
+    except requests.exceptions.RequestException as e:
+        return {
+            "success": False,
+            "message": f"API request error: {str(e)}"
+        }
     except Exception as e:
         return {
             "success": False,

@@ -86,10 +86,10 @@ def create_model_deployment(config: Dict[str, str], params: Dict[str, Any]) -> D
     api_url = f"{host}/api/v2/projects/{project_id}/models/{model_id}/deployments"
     print(f"Creating model deployment with URL: {api_url}")
     
-    # Construct curl command
+    # Construct curl command for API request
     curl_cmd = [
         "curl", "-s", "-X", "POST",
-        "-H", f"Authorization: ApiKey {api_key}",
+        "-H", f"Authorization: Bearer {api_key}",
         "-H", "Content-Type: application/json",
         "-d", request_data_json,
         api_url

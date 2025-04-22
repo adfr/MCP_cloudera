@@ -60,10 +60,10 @@ def delete_experiment_run_batch(config: Dict[str, str], params: Dict[str, Any]) 
         "ids": run_ids
     }
     
-    # Construct curl command
+    # Construct curl command for deletion
     curl_cmd = [
         "curl", "-s", "-X", "DELETE",
-        "-H", f"Authorization: ApiKey {api_key}",
+        "-H", f"Authorization: Bearer {api_key}",
         "-H", "Content-Type: application/json",
         "-d", json.dumps(request_data),
         api_url

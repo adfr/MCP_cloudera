@@ -1,9 +1,6 @@
 """List applications function for Cloudera ML MCP"""
 
-import os
-import json
-import subprocess
-from urllib.parse import urlparse
+import requests
 from typing import Dict, Any
 
 
@@ -19,68 +16,55 @@ def list_applications(config: Dict[str, str], params: Dict[str, Any]) -> Dict[st
     Returns:
         dict: Response containing list of applications or error message
     """
-    # Check if project_id is in params or config
-    if 'project_id' not in params and 'project_id' not in config:
-        return {
-            'success': False,
-            'message': 'Project ID is required but not provided in parameters or configuration'
-        }
-    
-    project_id = params.get('project_id', config.get('project_id', ''))
-    
-    # Format host URL
-    host = config['host']
-    parsed_url = urlparse(host)
-    
-    # Ensure the URL has the correct scheme
-    if not parsed_url.scheme:
-        host = f"https://{host}"
-    elif host.startswith('https://https://'):
-        host = host.replace('https://https://', 'https://')
-    
-    # Construct API URL
-    api_url = f"{host}/api/v1/projects/{project_id}/applications"
-    
-    # Set up headers
-    headers = [
-        '-H', f'Authorization: ApiKey {config["api_key"]}',
-        '-H', 'Content-Type: application/json'
-    ]
-    
-    # Construct curl command
-    curl_command = ['curl', '-s', '-X', 'GET']
-    curl_command.extend(headers)
-    curl_command.append(api_url)
-    
     try:
-        # Execute the curl command
-        process = subprocess.run(
-            curl_command,
-            capture_output=True,
-            text=True,
-            check=False
-        )
-        
-        # Check if the command was successful
-        if process.returncode != 0:
+        # Check if project_id is in params or config
+        if 'project_id' not in params and 'project_id' not in config:
             return {
                 'success': False,
-                'message': f'Failed to list applications: {process.stderr}'
+                'message': 'Project ID is required but not provided in parameters or configuration'
             }
+        
+        project_id = params.get('project_id', config.get('project_id', ''))
+        
+        # Format host URL correctly
+        host = config['host'].strip()
+        # Remove duplicate https:// if present
+        if host.startswith("https://https://"):
+            host = host.replace("https://https://", "https://")
+        # Ensure URL has a scheme
+        if not host.startswith(("http://", "https://")):
+            host = "https://" + host
+        # Remove trailing slash if present
+        host = host.rstrip("/")
+        
+        # Construct API URL - using v2 API instead of v1
+        api_url = f"{host}/api/v2/projects/{project_id}/applications"
+        
+        headers = {
+            "Authorization": f"Bearer {config['api_key']}",
+            "Content-Type": "application/json"
+        }
+        
+        print(f"Making request to: {api_url}")  # Debug output
+        response = requests.get(api_url, headers=headers)
+        response.raise_for_status()
         
         # Parse the response
-        try:
-            response = json.loads(process.stdout)
-            return {
-                'success': True,
-                'data': response
-            }
-        except json.JSONDecodeError:
-            return {
-                'success': False,
-                'message': f'Invalid JSON response: {process.stdout}'
-            }
+        applications_data = response.json()
+        applications = applications_data.get("applications", [])
+        
+        return {
+            'success': True,
+            'message': f"Found {len(applications)} applications",
+            'applications': applications,
+            'count': len(applications)
+        }
     
+    except requests.exceptions.RequestException as e:
+        return {
+            'success': False,
+            'message': f'API request error: {str(e)}'
+        }
     except Exception as e:
         return {
             'success': False,

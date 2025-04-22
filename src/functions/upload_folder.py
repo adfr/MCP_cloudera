@@ -1,14 +1,119 @@
 """Upload folder function for Cloudera ML MCP"""
 
 import os
+import json
+import time
+import datetime
 from pathlib import Path
 import requests
 from typing import Dict, Any, List, Optional
+import cmlapi
+
+
+def setup_client(host, api_key):
+    """
+    Setup the CML API client
+    
+    Args:
+        host: CML host URL
+        api_key: API key for authentication
+        
+    Returns:
+        Configured CML API client
+    """
+    # Properly format the host URL
+    host = host.strip()
+    # Remove duplicate https:// if present
+    if host.startswith("https://https://"):
+        host = host.replace("https://https://", "https://")
+    # Ensure URL has a scheme
+    if not host.startswith(("http://", "https://")):
+        host = "https://" + host
+    # Remove trailing slash if present
+    host = host.rstrip("/")
+    
+    config = cmlapi.Configuration()
+    config.host = host
+    api_client = cmlapi.ApiClient(config)
+    api_client.set_default_header("authorization", f"Bearer {api_key}")
+    return cmlapi.CMLServiceApi(api_client)
+
+
+def delete_file_if_exists(client, project_id, file_path):
+    """
+    Try to delete a file if it exists to avoid conflicts
+    
+    Args:
+        client: CML API client
+        project_id: ID of the project
+        file_path: Path of the file to delete
+    """
+    try:
+        client.delete_project_file(project_id=project_id, path=file_path)
+        print(f"Deleted existing file: {file_path}")
+        # Add a small delay to ensure the deletion is processed
+        time.sleep(0.5)
+    except Exception:
+        # File might not exist, which is fine
+        pass
+
+
+def upload_file_to_project(host, api_key, project_id, file_path, relative_path):
+    """
+    Upload a single file to Cloudera ML using direct PUT request
+    
+    Args:
+        host: CML host URL
+        api_key: API key for authentication
+        project_id: ID of the project to upload to
+        file_path: Full path to the file to upload
+        relative_path: Relative path within the project structure
+        
+    Returns:
+        Success/failure status
+    """
+    try:
+        # Convert relative path to string if it's a Path object
+        target_path = str(relative_path)
+        
+        # Setup the upload URL
+        upload_url = f"{host}/api/v2/projects/{project_id}/files"
+        
+        # Set the authorization header
+        headers = {
+            "Authorization": f"Bearer {api_key}"
+        }
+        
+        # Open the file to upload
+        with open(file_path, 'rb') as file_data:
+            # Create the form data with the target path as the field name
+            files = {
+                target_path: file_data
+            }
+            
+            # Make the PUT request
+            response = requests.put(
+                upload_url,
+                headers=headers,
+                files=files
+            )
+        
+        # Check the response
+        if response.status_code in (200, 201, 202, 204):
+            print(f"Successfully uploaded file: {target_path}")
+            return True
+        else:
+            print(f"Failed to upload file: {response.status_code} - {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"Error uploading {file_path}: {str(e)}")
+        return False
 
 
 def upload_folder(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Upload a folder to Cloudera ML
+    Upload a folder to Cloudera ML using direct PUT request
     
     Args:
         config: MCP configuration
@@ -32,6 +137,7 @@ def upload_folder(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, A
                 "message": "Missing project_id in configuration"
             }
         
+        # Default ignored folders if not specified
         ignore_folders = params.get("ignore_folders") or ["node_modules", ".git", ".vscode", "dist", "out"]
         
         # Check if folder exists
@@ -50,84 +156,51 @@ def upload_folder(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, A
         # Remove trailing slash if present
         host = host.rstrip("/")
         
-        # Setup headers
-        headers = {
-            "Authorization": f"Bearer {config['api_key']}",
-            "Content-Type": "application/json"
-        }
+        successful_uploads = []
+        failed_uploads = []
         
-        upload_results = {
-            "success": [],
-            "failed": []
-        }
-        
-        # Function to recursively upload files
-        def walk_and_upload(dir_path: Path):
-            for item in dir_path.iterdir():
-                # Skip ignored folders
-                if item.is_dir() and item.name in ignore_folders:
-                    continue
+        # Walk through the directory structure and upload files
+        for root, dirs, files in os.walk(folder_path):
+            # Skip ignored folders - this modifies dirs in place to avoid walking into them
+            dirs[:] = [d for d in dirs if d not in ignore_folders]
+            
+            for file in files:
+                # Get the full path and relative path
+                full_path = os.path.join(root, file)
+                relative_path = Path(full_path).relative_to(folder_path_obj)
                 
-                # Process directories recursively
-                if item.is_dir():
-                    walk_and_upload(item)
+                # Upload the file using direct PUT
+                print(f"Processing file: {relative_path}")
+                success = upload_file_to_project(
+                    host=host,
+                    api_key=config['api_key'],
+                    project_id=project_id,
+                    file_path=full_path,
+                    relative_path=relative_path
+                )
+                
+                if success:
+                    successful_uploads.append(str(relative_path))
                 else:
-                    try:
-                        # Upload the file
-                        relative_path = item.relative_to(folder_path_obj)
-                        
-                        # First upload the file
-                        with open(item, "rb") as file:
-                            files = {"file": (item.name, file)}
-                            upload_url = f"{host}/api/v2/projects/{project_id}/files"
-                            print(f"Uploading file: {relative_path} to {upload_url}")  # Debug output
-                            response = requests.post(
-                                upload_url, 
-                                files=files,
-                                headers={"Authorization": f"Bearer {config['api_key']}"}
-                            )
-                            response.raise_for_status()
-                        
-                        # Then update its metadata to preserve the path
-                        metadata = {
-                            "name": item.name,
-                            "path": str(relative_path),
-                            "type": "file"
-                        }
-                        
-                        metadata_url = f"{host}/api/v2/projects/{project_id}/files/file"
-                        print(f"Updating metadata for: {relative_path}")  # Debug output
-                        response = requests.patch(
-                            metadata_url,
-                            json=metadata,
-                            headers={
-                                "Authorization": f"Bearer {config['api_key']}",
-                                "Content-Type": "application/json"
-                            }
-                        )
-                        response.raise_for_status()
-                        
-                        upload_results["success"].append(str(relative_path))
-                    except Exception as e:
-                        upload_results["failed"].append({
-                            "file": str(item),
-                            "error": str(e)
-                        })
-        
-        # Start the upload process
-        walk_and_upload(folder_path_obj)
+                    failed_uploads.append({
+                        "file": str(relative_path),
+                        "error": "Failed to upload file"
+                    })
+                
+                # Add a small delay between uploads to prevent rate limiting
+                time.sleep(0.5)
         
         return {
             "success": True,
-            "message": f"Upload completed. Successfully uploaded {len(upload_results['success'])} files.",
-            "failed_count": len(upload_results["failed"]),
-            "results": upload_results
+            "message": f"Upload completed. Successfully uploaded {len(successful_uploads)} files.",
+            "failed_count": len(failed_uploads),
+            "successful_count": len(successful_uploads),
+            "results": {
+                "success": successful_uploads,
+                "failed": failed_uploads
+            }
         }
-    except requests.exceptions.RequestException as e:
-        return {
-            "success": False,
-            "message": f"API request error: {str(e)}"
-        }
+        
     except Exception as e:
         return {
             "success": False,

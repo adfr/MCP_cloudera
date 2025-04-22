@@ -63,7 +63,7 @@ def create_experiment(config: Dict[str, str], params: Dict[str, Any]) -> Dict[st
     # Construct curl command
     curl_cmd = [
         "curl", "-s", "-X", "POST",
-        "-H", f"Authorization: ApiKey {api_key}",
+        "-H", f"Authorization: Bearer {api_key}",
         "-H", "Content-Type: application/json",
         "-d", request_data_json,
         api_url

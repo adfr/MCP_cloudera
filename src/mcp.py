@@ -69,6 +69,24 @@ class ClouderaMCP:
             if schema.get("required", False) and not self.config.get(key):
                 raise ValueError(f"Missing required configuration: {key}")
     
+    def upload_file(self, file_path: str, target_name: Optional[str] = None, target_dir: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Upload a file to the Cloudera ML project
+        
+        Args:
+            file_path: Path to the file to upload
+            target_name: Optional name to save the file as
+            target_dir: Optional directory to save the file in
+            
+        Returns:
+            Upload file result
+        """
+        return functions.upload_file(self.config, {
+            "file_path": file_path,
+            "target_name": target_name,
+            "target_dir": target_dir
+        })
+    
     def upload_folder(self, folder_path: str, ignore_folders: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Upload a folder to Cloudera ML
@@ -130,24 +148,83 @@ class ClouderaMCP:
         List applications in a Cloudera ML project
         
         Args:
-            project_id: ID of the project (optional if set in configuration)
+            project_id: Optional project ID (uses the one in config if not provided)
             
         Returns:
             Dictionary containing list of applications
         """
+        # Prepare parameters
         params = {}
         
+        # Add project_id if provided
+        if project_id:
+            params["project_id"] = project_id
+        
+        # Call the function
+        return functions.list_applications(self.config, params)
+    
+    def create_application(
+        self, 
+        name: str, 
+        script: str, 
+        project_id: Optional[str] = None,
+        description: Optional[str] = None,
+        cpu: Optional[int] = None,
+        memory: Optional[int] = None,
+        nvidia_gpu: Optional[int] = None,
+        runtime_identifier: Optional[str] = None,
+        environment_variables: Optional[Dict[str, str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a new application in a Cloudera ML project
+        
+        Args:
+            name: Name for the application
+            script: Script to run in the application
+            project_id: Optional project ID (uses the one in config if not provided)
+            description: Optional description for the application
+            cpu: CPU cores (default: 1)
+            memory: Memory in GB (default: 1)
+            nvidia_gpu: Number of GPUs (default: 0)
+            runtime_identifier: Runtime identifier for the application
+            environment_variables: Environment variables as a dictionary
+            
+        Returns:
+            Dictionary containing the application creation result
+        """
+        # Prepare parameters
+        params = {
+            "name": name,
+            "script": script
+        }
+        
+        # Add project_id from parameters or config
         if project_id:
             params["project_id"] = project_id
         elif "project_id" in self.config:
             params["project_id"] = self.config["project_id"]
-        else:
-            return {
-                "success": False, 
-                "message": "Project ID is required but not provided in parameters or configuration"
-            }
+        
+        # Add optional parameters if provided
+        if description:
+            params["description"] = description
             
-        return functions.list_applications(self.config, params)
+        if cpu is not None:
+            params["cpu"] = cpu
+            
+        if memory is not None:
+            params["memory"] = memory
+            
+        if nvidia_gpu is not None:
+            params["nvidia_gpu"] = nvidia_gpu
+            
+        if runtime_identifier:
+            params["runtime_identifier"] = runtime_identifier
+            
+        if environment_variables:
+            params["environment_variables"] = environment_variables
+        
+        # Call the function
+        return functions.create_application(self.config, params)
     
     def delete_job(self, job_id: str) -> Dict[str, Any]:
         """
@@ -1222,6 +1299,23 @@ class ClouderaMCP:
 
     # Function declaration map for Claude to understand available functions
     FUNCTIONS = {
+        "upload_file": {
+            "description": "Upload a single file to Cloudera ML root directory",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Local path to the file to upload"
+                    },
+                    "target_name": {
+                        "type": "string",
+                        "description": "Optional name to use for the uploaded file"
+                    }
+                },
+                "required": ["file_path"]
+            }
+        },
         "upload_folder": {
             "description": "Upload a folder to Cloudera ML",
             "parameters": {

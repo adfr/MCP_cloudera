@@ -50,7 +50,7 @@ def get_job_run(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any
     # Set up headers
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"ApiKey {config.get('api_key', '')}"
+        "Authorization": f"Bearer {config.get('api_key', '')}"
     }
     
     # Construct curl command

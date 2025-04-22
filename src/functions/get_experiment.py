@@ -46,7 +46,7 @@ def get_experiment(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, 
     # Set up headers
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"ApiKey {config.get('api_key', '')}"
+        "Authorization": f"Bearer {config.get('api_key', '')}"
     }
     
     # Construct curl command

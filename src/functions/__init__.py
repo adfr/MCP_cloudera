@@ -1,5 +1,6 @@
 """Functions for Cloudera ML MCP"""
 
+from .upload_file import upload_file
 from .upload_folder import upload_folder
 from .create_job import create_job
 from .list_jobs import list_jobs
@@ -45,8 +46,10 @@ from .update_experiment_run import update_experiment_run
 from .update_job import update_job
 from .update_project import update_project
 from .update_project_file_metadata import update_project_file_metadata
+from .create_application import create_application
 
 __all__ = [
+    'upload_file',
     'upload_folder',
     'create_job',
     'list_jobs',
@@ -91,5 +94,6 @@ __all__ = [
     'update_experiment_run',
     'update_job',
     'update_project',
-    'update_project_file_metadata'
+    'update_project_file_metadata',
+    'create_application'
 ] 

@@ -42,6 +42,9 @@ def delete_job(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]
         # Fix potential double https:// in the URL
         host = parsed_url.scheme + "://" + host.split("://")[-1]
     
+    # Remove trailing slash if present
+    host = host.rstrip('/')
+    
     api_key = config.get("api_key")
     if not api_key:
         return {"success": False, "message": "Missing api_key in configuration"}
@@ -53,7 +56,7 @@ def delete_job(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]
     # Construct curl command for getting job details
     get_job_cmd = [
         "curl", "-s",
-        "-H", f"Authorization: ApiKey {api_key}",
+        "-H", f"Authorization: Bearer {api_key}",
         job_url
     ]
     
@@ -81,13 +84,17 @@ def delete_job(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]
     # Construct curl command for deletion
     curl_cmd = [
         "curl", "-s", "-X", "DELETE",
-        "-H", f"Authorization: ApiKey {api_key}",
+        "-H", f"Authorization: Bearer {api_key}",
         delete_url
     ]
     
     try:
-        # Execute curl command
+        # Execute curl command with debug output
+        print(f"Executing curl command: {' '.join(curl_cmd)}")
         result = subprocess.run(curl_cmd, capture_output=True, text=True)
+        print(f"Curl exit code: {result.returncode}")
+        print(f"Curl stdout: '{result.stdout}'")
+        print(f"Curl stderr: '{result.stderr}'")
         
         # Check if the curl command was successful
         if result.returncode != 0:
