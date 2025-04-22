@@ -15,6 +15,7 @@ load_dotenv()
 
 # Import tools
 from src.functions.upload_folder import upload_folder
+from src.functions.upload_file import upload_file
 from src.functions.create_job import create_job
 from src.functions.list_jobs import list_jobs
 from src.functions.delete_job import delete_job
@@ -72,18 +73,22 @@ def get_config():
 
 # Register functions as MCP tools
 @mcp.tool()
-def upload_folder_tool(folder_path: str, ignore_folders: str = None) -> str:
+def upload_folder_tool(folder_path: str, ignore_folders: str = None, project_id: str = None) -> str:
     """
     Upload a folder to Cloudera ML.
     
     Args:
         folder_path: Local path to the folder to upload
         ignore_folders: Comma-separated list of folders to ignore (optional)
+        project_id: Project ID (optional - if not provided, uses default from configuration)
     
     Returns:
         JSON string with upload results
     """
     config = get_config()
+    if project_id:
+        config["project_id"] = project_id
+    
     # Convert comma-separated string to list if provided
     ignore_list = ignore_folders.split(",") if ignore_folders else None
     
@@ -91,7 +96,32 @@ def upload_folder_tool(folder_path: str, ignore_folders: str = None) -> str:
         "folder_path": folder_path,
         "ignore_folders": ignore_list
     })
-    return result
+    return json.dumps(result, indent=2)
+
+@mcp.tool()
+def upload_file_tool(file_path: str, target_name: str = None, target_dir: str = None, project_id: str = None) -> str:
+    """
+    Upload a single file to Cloudera ML.
+    
+    Args:
+        file_path: Local path to the file to upload
+        target_name: Optional name to use for the uploaded file
+        target_dir: Optional directory to upload to
+        project_id: Project ID (optional - if not provided, uses default from configuration)
+    
+    Returns:
+        JSON string with upload results
+    """
+    config = get_config()
+    if project_id:
+        config["project_id"] = project_id
+    
+    result = upload_file(config, {
+        "file_path": file_path,
+        "target_name": target_name,
+        "target_dir": target_dir
+    })
+    return json.dumps(result, indent=2)
 
 @mcp.tool()
 def create_job_tool(name: str, script: str, kernel: str = "python3", 
@@ -944,22 +974,21 @@ def get_model_deployment_tool(model_id: str, deployment_id: str, project_id: str
     return json.dumps(result, indent=2)
 
 @mcp.tool()
-def list_project_files_tool(path: str = "", project_id: str = None) -> str:
+def list_project_files_tool(project_id: str, path: str = "") -> str:
     """
     List files in a Cloudera ML project.
     
     Args:
+        project_id: ID of the project
         path: Path to list files from (relative to project root)
-        project_id: ID of the project (optional if not provided, uses default from configuration)
     
     Returns:
         JSON string containing list of project files
     """
     config = get_config()
-    if project_id:
-        config["project_id"] = project_id
+    config["project_id"] = project_id
     
-    params = {"project_id": project_id or config.get("project_id", "")}
+    params = {"project_id": project_id}
     if path:
         params["path"] = path
         

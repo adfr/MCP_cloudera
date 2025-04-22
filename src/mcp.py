@@ -69,7 +69,7 @@ class ClouderaMCP:
             if schema.get("required", False) and not self.config.get(key):
                 raise ValueError(f"Missing required configuration: {key}")
     
-    def upload_file(self, file_path: str, target_name: Optional[str] = None, target_dir: Optional[str] = None) -> Dict[str, Any]:
+    def upload_file(self, file_path: str, target_name: Optional[str] = None, target_dir: Optional[str] = None, project_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Upload a file to the Cloudera ML project
         
@@ -77,31 +77,47 @@ class ClouderaMCP:
             file_path: Path to the file to upload
             target_name: Optional name to save the file as
             target_dir: Optional directory to save the file in
+            project_id: Optional project ID (uses the one in config if not provided)
             
         Returns:
             Upload file result
         """
-        return functions.upload_file(self.config, {
+        # Prepare configuration with project_id if provided
+        config = dict(self.config)
+        if project_id:
+            config["project_id"] = project_id
+            
+        return functions.upload_file(config, {
             "file_path": file_path,
             "target_name": target_name,
             "target_dir": target_dir
         })
     
-    def upload_folder(self, folder_path: str, ignore_folders: Optional[List[str]] = None) -> Dict[str, Any]:
+    def upload_folder(self, folder_path: str, ignore_folders: Optional[List[str]] = None, project_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Upload a folder to Cloudera ML
         
         Args:
             folder_path: Local path to the folder to upload
             ignore_folders: Folders to ignore during upload
+            project_id: Optional project ID (uses the one in config if not provided)
             
         Returns:
             Upload results
         """
-        return functions.upload_folder(self.config, {
+        # Prepare parameters
+        params = {
             "folder_path": folder_path,
-            "ignore_folders": ignore_folders
-        })
+        }
+        
+        if ignore_folders:
+            params["ignore_folders"] = ignore_folders
+            
+        # Add project_id if provided
+        if project_id:
+            params["project_id"] = project_id
+            
+        return functions.upload_folder(self.config, params)
     
     def create_job(self, name: str, script: str, 
                   kernel: str = "python3",
@@ -974,31 +990,23 @@ class ClouderaMCP:
             
         return functions.list_model_deployments(self.config, params)
     
-    def list_project_files(self, path: Optional[str] = "", project_id: Optional[str] = None) -> Dict[str, Any]:
+    def list_project_files(self, project_id: str, path: Optional[str] = "") -> Dict[str, Any]:
         """
         List files in a Cloudera ML project
         
         Args:
+            project_id: ID of the project
             path: Path to list files from (relative to project root)
-            project_id: ID of the project (optional if set in configuration)
             
         Returns:
             Dictionary containing list of project files
         """
-        params = {}
+        params = {
+            "project_id": project_id
+        }
         
         if path:
             params["path"] = path
-            
-        if project_id:
-            params["project_id"] = project_id
-        elif "project_id" in self.config:
-            params["project_id"] = self.config["project_id"]
-        else:
-            return {
-                "success": False, 
-                "message": "Project ID is required but not provided in parameters or configuration"
-            }
             
         return functions.list_project_files(self.config, params)
 
@@ -1977,16 +1985,16 @@ class ClouderaMCP:
             "parameters": {
                 "type": "object",
                 "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "ID of the project"
+                    },
                     "path": {
                         "type": "string",
                         "description": "Path to list files from (relative to project root)"
-                    },
-                    "project_id": {
-                        "type": "string",
-                        "description": "ID of the project (optional if set in configuration)"
                     }
                 },
-                "required": []
+                "required": ["project_id"]
             }
         },
         "log_experiment_run_batch": {

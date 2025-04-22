@@ -44,7 +44,8 @@ def parse_args():
         'delete_application',
         'get_application',
         'list_applications',
-        'create_application'
+        'create_application',
+        'list_project_files'
     ], help='MCP command to run')
     
     # Command-specific arguments
@@ -52,6 +53,7 @@ def parse_args():
     parser.add_argument('--target-name', help='Target name for the uploaded file')
     parser.add_argument('--target-dir', help='Target directory for the uploaded file')
     parser.add_argument('--folder-path', help='Local folder path to upload')
+    parser.add_argument('--path', help='Path to list files from (relative to project root)')
     parser.add_argument('--job-name', help='Name for the job to create')
     parser.add_argument('--script-path', help='Script path for the job to create')
     parser.add_argument('--job-id', help='ID of the job to delete or run')
@@ -125,13 +127,21 @@ def main():
             if not args.file_path:
                 print("Error: --file-path is required for upload_file command")
                 return 1
-            result = mcp.upload_file(file_path=args.file_path, target_name=args.target_name, target_dir=args.target_dir)
+            result = mcp.upload_file(
+                file_path=args.file_path, 
+                target_name=args.target_name, 
+                target_dir=args.target_dir,
+                project_id=args.project_id
+            )
         
         elif args.command == 'upload_folder':
             if not args.folder_path:
                 print("Error: --folder-path is required for upload_folder command")
                 return 1
-            result = mcp.upload_folder(folder_path=args.folder_path)
+            result = mcp.upload_folder(
+                folder_path=args.folder_path, 
+                project_id=args.project_id
+            )
         
         elif args.command == 'create_job':
             if not args.job_name or not args.script_path:
@@ -339,6 +349,16 @@ def main():
                 nvidia_gpu=args.nvidia_gpu,
                 runtime_identifier=args.runtime,
                 environment_variables=env_vars
+            )
+        
+        elif args.command == 'list_project_files':
+            if not args.project_id:
+                print("Error: --project-id is required for list_project_files command")
+                return 1
+                
+            result = mcp.list_project_files(
+                path=args.path or "",
+                project_id=args.project_id
             )
         
         # Display the result

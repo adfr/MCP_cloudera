@@ -1,20 +1,18 @@
 """Function to list files in a Cloudera ML project."""
 
 import json
-import os
-import subprocess
-from urllib.parse import urlparse
+import requests
+from urllib.parse import urlparse, quote
 
 
-def list_project_files(config, params=None):
+def list_project_files(config, params):
     """
     List files in a Cloudera ML project.
 
     Args:
         config (dict): MCP configuration.
-        params (dict, optional): Parameters for the API call. Default is None.
-            - project_id (str, optional): ID of the project to list files from.
-                If not provided, it will be taken from the configuration.
+        params (dict): Parameters for the API call.
+            - project_id (str): ID of the project to list files from. Required.
             - path (str, optional): Path to list files from (relative to project root).
                 Default is empty string (project root).
 
@@ -26,14 +24,13 @@ def list_project_files(config, params=None):
                 "data": list  # List of file objects if successful, otherwise None
             }
     """
-    params = params or {}
-    project_id = params.get('project_id') or config.get('project_id')
+    project_id = params.get('project_id')
     path = params.get('path', '')
 
     if not project_id:
         return {
             "success": False,
-            "message": "project_id is required either in config or params",
+            "message": "project_id is required in params",
             "data": None
         }
 
@@ -46,65 +43,73 @@ def list_project_files(config, params=None):
             "data": None
         }
 
-    # Ensure the host has the correct scheme and no trailing slash
+    # Fix URL formatting issues
+    # First, remove any trailing slashes
+    host = host.rstrip('/')
+    
+    # Then, ensure we have the correct scheme
     parsed_url = urlparse(host)
     if not parsed_url.scheme:
+        # No scheme, add https://
         host = 'https://' + host
     elif host.startswith('http://'):
+        # Convert http:// to https://
         host = 'https://' + host[7:]
+    
+    # Handle case where host might be incorrectly formatted with double scheme
+    if parsed_url.netloc == '' and parsed_url.path.startswith('//'):
+        # This handles cases like 'https://ml-a7716c71...'
+        # where urlparse might not correctly parse the netloc
+        parts = host.split('//')
+        if len(parts) > 1:
+            host = 'https://' + parts[-1]
 
-    host = host.rstrip('/')
+    # Print the formatted host for debugging
+    print(f"Formatted host: {host}")
 
     # Build the API URL
     url = f"{host}/api/v2/projects/{project_id}/files"
     if path:
-        # Add query parameter for path
-        url += f"?path={path}"
+        # Add query parameter for path with proper URL encoding
+        url += f"?path={quote(path)}"
     
     print(f"Accessing: {url}")
 
-    # Prepare the curl command
-    curl_command = [
-        'curl', '-s',
-        '-X', 'GET',
-        '-H', f"Authorization: Bearer {config.get('api_key', '')}",
-        '-H', 'Content-Type: application/json',
-        url
-    ]
+    # Prepare headers for the request
+    headers = {
+        "Authorization": f"Bearer {config.get('api_key', '')}",
+        "Content-Type": "application/json"
+    }
 
-    # Execute the curl command
+    # Make the API request using requests library
     try:
-        response = subprocess.run(
-            curl_command,
-            capture_output=True,
-            text=True,
-            check=False
-        )
-
-        if response.returncode != 0:
+        response = requests.get(url, headers=headers, timeout=30)
+        
+        # Check if request was successful
+        if response.status_code == 200:
+            try:
+                data = response.json()
+                return {
+                    "success": True,
+                    "message": "Successfully listed project files",
+                    "data": data
+                }
+            except json.JSONDecodeError as e:
+                return {
+                    "success": False,
+                    "message": f"Failed to parse response as JSON: {str(e)}",
+                    "data": None
+                }
+        else:
             return {
                 "success": False,
-                "message": f"Failed to execute curl command: {response.stderr}",
+                "message": f"API request failed with status code {response.status_code}: {response.text}",
                 "data": None
             }
-
-        try:
-            data = json.loads(response.stdout)
-            return {
-                "success": True,
-                "message": "Successfully listed project files",
-                "data": data
-            }
-        except json.JSONDecodeError:
-            return {
-                "success": False,
-                "message": f"Failed to parse response as JSON: {response.stdout}",
-                "data": None
-            }
-    except subprocess.SubprocessError as e:
+    except requests.RequestException as e:
         return {
             "success": False,
-            "message": f"Failed to execute curl command: {str(e)}",
+            "message": f"Error making API request: {str(e)}",
             "data": None
         }
     except Exception as e:
