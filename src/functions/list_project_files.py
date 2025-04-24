@@ -79,10 +79,16 @@ def list_project_files(config, params):
     headers = {
         "Authorization": f"Bearer {config.get('api_key', '')}",
         "Content-Type": "application/json"
-    }
+    }\
 
     # Make the API request using requests library
     try:
+        # Verify that the URL starts with https:// and add it if it doesn't
+        if not url.startswith("https://"):
+            # Remove any leading http:// and any leading slashes
+            url = url.lstrip("http://").lstrip("/")
+            url = "https://" + url
+        print(f"URL: {url}")
         response = requests.get(url, headers=headers, timeout=30)
         
         # Check if request was successful
