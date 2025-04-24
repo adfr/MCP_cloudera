@@ -1,30 +1,31 @@
-"""Delete job function for Cloudera ML MCP"""
+"""Delete project file function for Cloudera ML MCP"""
 
 import os
 import json
 import subprocess
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 from typing import Dict, Any
 
 
-def delete_job(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]:
+def delete_project_file(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Delete a job by ID
+    Delete a file or directory from a Cloudera ML project
     
     Args:
         config: MCP configuration with host and api_key
         params: Function parameters
-            - job_id: ID of the job to delete
+            - file_path: Path of the file or directory to delete (relative to project root)
+            - project_id: ID of the project (optional if in config)
         
     Returns:
         Delete operation results
     """
     # Validate required parameters
-    job_id = params.get("job_id")
-    if not job_id:
-        return {"success": False, "message": "Missing required parameter: job_id"}
+    file_path = params.get("file_path")
+    if not file_path:
+        return {"success": False, "message": "Missing required parameter: file_path"}
     
-    # Get project_id from config
+    # Get project_id from params or config
     project_id = params.get("project_id") or config.get("project_id")
     if not project_id:
         return {"success": False, "message": "Missing project_id in configuration or parameters"}
@@ -42,44 +43,16 @@ def delete_job(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]
         # Fix potential double https:// in the URL
         host = parsed_url.scheme + "://" + host.split("://")[-1]
     
-    # Remove trailing slash if present
-    host = host.rstrip('/')
-    
     api_key = config.get("api_key")
     if not api_key:
         return {"success": False, "message": "Missing api_key in configuration"}
     
-    # First, try to get the job details to include in the response
-    job_url = f"{host}/api/v2/projects/{project_id}/jobs/{job_id}"
-    print(f"Getting job details from: {job_url}")
-    
-    # Construct curl command for getting job details
-    get_job_cmd = [
-        "curl", "-s",
-        "-H", f"Authorization: Bearer {api_key}",
-        job_url
-    ]
-    
-    job_name = f"Job ID {job_id}"
-    try:
-        # Execute curl command to get job details
-        job_result = subprocess.run(get_job_cmd, capture_output=True, text=True)
-        
-        # If successful, parse the job name
-        if job_result.returncode == 0 and job_result.stdout.strip():
-            try:
-                job_info = json.loads(job_result.stdout)
-                job_name = job_info.get("name", job_name)
-            except json.JSONDecodeError:
-                # If we can't parse the response, continue with deletion anyway
-                pass
-    except Exception:
-        # If we can't get the job details, continue with deletion anyway
-        pass
+    # URL encode the file path
+    encoded_file_path = quote(file_path)
     
     # Build the URL for the delete request
-    delete_url = f"{host}/api/v2/projects/{project_id}/jobs/{job_id}"
-    print(f"Deleting job with URL: {delete_url}")
+    delete_url = f"{host}/api/v2/projects/{project_id}/files?path={encoded_file_path}"
+    print(f"Deleting project file with URL: {delete_url}")
     
     # Construct curl command for deletion
     curl_cmd = [
@@ -89,18 +62,14 @@ def delete_job(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]
     ]
     
     try:
-        # Execute curl command with debug output
-        print(f"Executing curl command: {' '.join(curl_cmd)}")
+        # Execute curl command
         result = subprocess.run(curl_cmd, capture_output=True, text=True)
-        print(f"Curl exit code: {result.returncode}")
-        print(f"Curl stdout: '{result.stdout}'")
-        print(f"Curl stderr: '{result.stderr}'")
         
         # Check if the curl command was successful
         if result.returncode != 0:
             return {
                 "success": False,
-                "message": f"Failed to delete job: {result.stderr}"
+                "message": f"Failed to delete file: {result.stderr}"
             }
         
         # Parse the response if there is any content
@@ -118,8 +87,8 @@ def delete_job(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]
                 
                 return {
                     "success": True,
-                    "message": f"Successfully deleted '{job_name}'",
-                    "job_id": job_id,
+                    "message": f"Successfully deleted '{file_path}'",
+                    "file_path": file_path,
                     "data": response
                 }
             except json.JSONDecodeError:
@@ -129,12 +98,12 @@ def delete_job(config: Dict[str, str], params: Dict[str, Any]) -> Dict[str, Any]
         # If we got here, the deletion was likely successful but returned no content
         return {
             "success": True,
-            "message": f"Successfully deleted '{job_name}'",
-            "job_id": job_id
+            "message": f"Successfully deleted '{file_path}'",
+            "file_path": file_path
         }
     
     except Exception as e:
         return {
             "success": False,
-            "message": f"Error deleting job: {str(e)}"
+            "message": f"Error deleting file: {str(e)}"
         } 

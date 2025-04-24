@@ -154,6 +154,10 @@ out/
 # Cloudera ML specific
 .rstudio/
 
+# Workspace
+workspace/
+**/workspace/*
+
 # Local project files
 *.local
 local_notes.txt 
