@@ -9,6 +9,10 @@ This MCP implements a Python-based integration with Cloudera Machine Learning, a
 3. **List Jobs**: View all jobs in your project with their current status
 4. **Delete Jobs**: Remove individual jobs or all jobs in a project
 5. **Get Project ID**: Retrieve project ID from a project name
+6. **List Project Files**: View files and directories in your project
+7. **Model Management**: Create, list, and manage ML models and deployments
+8. **Experiment Tracking**: Log and manage ML experiments and runs
+9. **Application Management**: Create, update, and manage CML applications
 
 ## Installation
 
@@ -34,7 +38,10 @@ export CLOUDERA_ML_API_KEY="your-api-key"
 # Optional: export CLOUDERA_ML_PROJECT_ID="your-project-id"
 ```
 
-If you don't know your project ID, you can use the `get_project_id` function to retrieve it by project name.
+### URL Configuration Notes
+- The host URL should not include duplicate "https://" prefixes
+- Trailing slashes are automatically handled
+- The MCP will automatically format URLs correctly
 
 ## Running the MCP Server
 
@@ -99,9 +106,9 @@ project_info = cloudera.get_project_id(project_name="my-project-name")
 project_id = project_info["project_id"]
 print(f"Project ID: {project_id}")
 
-# Use MCP functions with the retrieved project ID
-jobs = cloudera.list_jobs()
-print(jobs)
+# List project files
+files = cloudera.list_project_files(project_id=project_id)
+print(files)
 
 # Upload a folder
 result = cloudera.upload_folder(
@@ -125,11 +132,16 @@ Where `COMMAND` is one of:
 - `delete_job` - Delete a specific job
 - `delete_all_jobs` - Delete all jobs in the project
 - `get_project_id` - Get project ID from a project name (`--project-name` required)
+- `list_project_files` - List files in a project
+- `list_models` - List ML models in a project
+- `list_model_deployments` - List model deployments
+- `list_experiments` - List experiments in a project
+- `list_job_runs` - List job runs
 
-### Example: Getting Project ID by Name
+### Example: Listing Project Files
 
 ```bash
-./run_mcp.py --host "https://ml-xxxx.cloudera.site" --api-key "your-api-key" get_project_id --project-name "my-project-name"
+./run_mcp.py --host "https://ml-xxxx.cloudera.site" --api-key "your-api-key" list_project_files --project-id "your-project-id"
 ```
 
 ## Requirements
